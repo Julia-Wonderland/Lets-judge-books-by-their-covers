@@ -1,0 +1,17 @@
+# DVC-managed data
+data/
+images/
+
+# Hadoop runtime storage
+hadoop/
+
+# Python
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Env
+venv/
+.env
