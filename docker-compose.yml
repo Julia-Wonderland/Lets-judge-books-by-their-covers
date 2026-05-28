@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    ports:
+      - "9870:9870"   # HDFS Web UI
+      - "9000:9000"   # HDFS access
+    environment:
+      - CLUSTER_NAME=test
+    volumes:
+      - ./hadoop/namenode:/hadoop/dfs/name
+      - ./:/workspace
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870
+    volumes:
+      - ./hadoop/datanode:/hadoop/dfs/data
+      - ./:/workspace
