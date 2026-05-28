@@ -6,7 +6,6 @@ from PIL import Image
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
-# -------- URL FILTER --------
 def is_valid_url(url):
     if url is None:
         return False
@@ -15,7 +14,7 @@ def is_valid_url(url):
     return not any(word in url.lower() for word in bad_keywords)
 
 
-# -------- IMAGE VALIDATION --------
+
 def is_valid_image(path):
     try:
         with Image.open(path) as img:
@@ -27,8 +26,7 @@ def is_valid_image(path):
 
             ratio = width / height
 
-            # book covers are usually vertical
-            if ratio > 1.2:   # too wide → probably not a book
+            if ratio > 1.2:   
                 return False
 
         return True
@@ -36,7 +34,6 @@ def is_valid_image(path):
         return False
 
 
-# -------- GET IMAGE URL --------
 def get_image_url(page_url):
     try:
         response = requests.get(page_url, headers=HEADERS, timeout=10)
@@ -46,12 +43,10 @@ def get_image_url(page_url):
 
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # primary method
         tag = soup.find("meta", property="og:image")
         if tag:
             return tag["content"]
 
-        # fallback
         img_tag = soup.find("img", id="coverImage")
         if img_tag:
             return img_tag.get("src")
@@ -60,7 +55,6 @@ def get_image_url(page_url):
         return None
 
 
-# -------- DOWNLOAD IMAGE --------
 def download_image(img_url, save_path):
     try:
         response = requests.get(img_url, headers=HEADERS, timeout=10)
@@ -75,7 +69,6 @@ def download_image(img_url, save_path):
     return False
 
 
-# -------- MAIN SCRAPER --------
 def scrape_images(df, save_dir="images"):
     os.makedirs(save_dir, exist_ok=True)
 
@@ -88,11 +81,9 @@ def scrape_images(df, save_dir="images"):
 
         filepath = os.path.join(save_dir, f"{book_id}.jpg")
 
-        # skip if already downloaded
         if os.path.exists(filepath):
             continue
 
-        # retry logic
         for attempt in range(3):
             img_url = get_image_url(url)
 
@@ -112,7 +103,6 @@ def scrape_images(df, save_dir="images"):
             failed += 1
             print(f"[FAILED] {url}")
 
-        # progress log
         if i % 50 == 0:
             print(f"Processed: {i} | Success: {success} | Failed: {failed}")
 
