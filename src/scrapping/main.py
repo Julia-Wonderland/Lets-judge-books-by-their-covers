@@ -3,7 +3,7 @@ from scrapper import scrape_images
 
 
 def main():
-    df = load_and_filter(sample_size=2000)
+    df = load_and_filter(sample_size=10000)
     scrape_images(df)
 
 
