@@ -6,34 +6,27 @@ spark = SparkSession.builder \
     .appName("GoodreadsFeatureEngineering") \
     .getOrCreate()
 
-# -------------------------
-# 1. LOAD DATA
-# -------------------------
+
 df = spark.read.parquet(
-    "hdfs://namenode:9000/project/raw/26_29_dataset.parquet"
+    "hdfs://namenode:9000/project/raw/bigger_dataset.parquet"
 )
 
 df.coalesce(1).write.mode("overwrite").parquet(
-    "hdfs://namenode:9000/project/processed/zero_stage_clean"
+    "hdfs://namenode:9000/project/processed/zero_stage_clean_2"
 )
 
-# -------------------------
-# 2. BASIC CLEANING
-# -------------------------
+
 df_clean = df \
     .filter(F.col("genres").isNotNull()) \
-    #.filter(F.col("genres") != "[]") \
-    #.filter(F.col("num_ratings").isNotNull()) \
-    #.filter(F.col("num_reviews").isNotNull()) \
-    #.filter(F.col("num_ratings") > 7500)
+    .filter(F.col("genres") != "[]") \
+    .filter(F.col("num_ratings").isNotNull()) \
+    .filter(F.col("num_reviews").isNotNull()) \
+    .filter(F.col("num_ratings") > 7500)
 
 df_clean.coalesce(1).write.mode("overwrite").parquet(
-    "hdfs://namenode:9000/project/processed/first_stage_clean"
+    "hdfs://namenode:9000/project/processed/first_stage_clean_2"
 )
 
-# -------------------------
-# 3. STRING -> ARRAY CLEANING
-# -------------------------
 df_clean = df_clean.withColumn(
     "genres_array",
     F.split(
@@ -47,9 +40,6 @@ df_clean = df_clean.withColumn(
     F.expr("transform(genres_array, x -> trim(x))")
 )
 
-# -------------------------
-# 4. FILTER RARE GENRES (Spark-native, no collect hacks)
-# -------------------------
 genre_counts = df_clean \
     .select(F.explode("genres_array").alias("genre")) \
     .groupBy("genre") \
@@ -65,9 +55,7 @@ common_genres_df = genre_counts \
 common_genres_list = [r["genre"] for r in common_genres_df.collect()]
 common_genres_broadcast = spark.sparkContext.broadcast(set(common_genres_list))
 
-# -------------------------
-# 5. FILTER GENRES USING PYTHON UDF-FREE EXPRESSION
-# -------------------------
+
 df_clean = df_clean.withColumn(
     "genres_filtered",
     F.expr("""
@@ -81,9 +69,7 @@ df_clean = df_clean.withColumn(
     ))
 )
 
-# -------------------------
-# 6. MULTI-HOT ENCODING (EXPLICIT COLUMNS)
-# -------------------------
+
 for genre in common_genres_list:
     col_name = "genre_" + genre.replace(" ", "_").replace("-", "_")
 
@@ -92,9 +78,7 @@ for genre in common_genres_list:
         F.when(F.array_contains("genres_filtered", genre), 1).otherwise(0)
     )
 
-# -------------------------
-# 7. VECTOR ENCODING (BEST FOR DL / ML MODELS)
-# -------------------------
+
 cv = CountVectorizer(
     inputCol="genres_filtered",
     outputCol="genre_vector",
@@ -103,20 +87,29 @@ cv = CountVectorizer(
 )
 
 cv_model = cv.fit(df_clean)
+
+vocab = cv_model.vocabulary
+
+mapping = [(i, g) for i, g in enumerate(vocab)]
+
+mapping_df = spark.createDataFrame(mapping, ["index", "genre"])
+
+mapping_df.coalesce(1).write.mode("overwrite").parquet(
+    "hdfs://namenode:9000/project/processed/genre_vector_mapping_2"
+)
+
 df_final = cv_model.transform(df_clean)
 
-# -------------------------
-# 8. SAVE OUTPUT
-# -------------------------
+
 df_final.coalesce(1).write.mode("overwrite").parquet(
-    "hdfs://namenode:9000/project/processed/books_ml_ready"
+    "hdfs://namenode:9000/project/processed/books_ml_ready_2"
 )
 
 spark.createDataFrame(
     [(g,) for g in common_genres_list],
     ["genre"]
 ).coalesce(1).write.mode("overwrite").parquet(
-    "hdfs://namenode:9000/project/processed/genre_vocab"
+    "hdfs://namenode:9000/project/processed/genre_vocab_2"
 )
 
 spark.stop()
